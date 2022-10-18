@@ -44,7 +44,7 @@ class {{ cookiecutter.tool_class_name }}Parser(object):
         # Dictonary to hold the aggregated findings with:
         #  - key: the concatenated aggregate keys
         #  - value: the finding
-        dupes = dict()
+        dupes = {}
         for query in root.findall('Query'):
             name, cwe, categories = self.getQueryElements(query)
             language = ''
@@ -60,21 +60,21 @@ class {{ cookiecutter.tool_class_name }}Parser(object):
 
             for result in query.findall('Result'):
                 if categories is not None:
-                    findingdetail = "{}**Category:** {}\n".format(findingdetail, categories)
+                    findingdetail = f"{findingdetail}**Category:** {categories}\n"
 
                 if language is not None:
-                    findingdetail = "{}**Language:** {}\n".format(findingdetail, language)
+                    findingdetail = f"{findingdetail}**Language:** {language}\n"
                     if language not in self.language_list:
                         self.language_list.append(language)
 
                 if group is not None:
-                    findingdetail = "{}**Group:** {}\n".format(findingdetail, group)
+                    findingdetail = f"{findingdetail}**Group:** {group}\n"
 
                 if result.get('Status') is not None:
-                    findingdetail = "{}**Status:** {}\n".format(findingdetail, result.get('Status'))
+                    findingdetail = f"{findingdetail}**Status:** {result.get('Status')}\n"
 
-                deeplink = "[{}]({})".format(result.get('DeepLink'), result.get('DeepLink'))
-                findingdetail = "{}**Finding Link:** {}\n\n".format(findingdetail, deeplink)
+                deeplink = f"[{result.get('DeepLink')}]({result.get('DeepLink')})"
+                findingdetail = f"{findingdetail}**Finding Link:** {deeplink}\n\n"
 
                 if self.mode == 'detailed':
                     self.process_result_detailed(dupes, findingdetail, query, result, find_date)
@@ -95,11 +95,11 @@ class {{ cookiecutter.tool_class_name }}Parser(object):
         titleStart = query.get('name').replace('_', ' ')
         description, lastPathnode = self.get_description_file_name_aggregated(query, result)
         sinkFilename = lastPathnode.find('FileName').text
-        title = "{} ({})".format(titleStart, ntpath.basename(sinkFilename))
+        title = f"{titleStart} ({ntpath.basename(sinkFilename)})"
         false_p = result.get('FalsePositive')
-        aggregateKeys = "{}{}{}{}".format(categories, cwe, name, sinkFilename)
+        aggregateKeys = f"{categories}{cwe}{name}{sinkFilename}"
 
-        if not(aggregateKeys in dupes):
+        if aggregateKeys not in dupes:
             sev = result.get('Severity')
             find = Finding(title=title,
                            cwe=int(cwe),
@@ -125,7 +125,7 @@ class {{ cookiecutter.tool_class_name }}Parser(object):
         else:
             # We have already created a finding for this aggregate: updates the description and the nb_occurences
             find = dupes[aggregateKeys]
-            find.description = "{}\n-----\n{}".format(find.description, description)
+            find.description = f"{find.description}\n-----\n{description}"
             find.nb_occurences = find.nb_occurences + 1
             # If at least one of the findings in the aggregate is exploitable, the defectdojo finding should not be "false positive"
             if(false_p == "False"):
@@ -144,8 +144,10 @@ class {{ cookiecutter.tool_class_name }}Parser(object):
                     firstPathnode = False
         # At this point we have iterated over all path nodes (function calls) and pathnode is at the sink of the vulnerability
         sinkFilename, sinkLineNumber, sinkObject = self.get_pathnode_elements(pathnode)
-        description = "<b>Source filename: </b>{}\n<b>Source line number: </b> {}\n<b>Source object: </b> {}".format(sourceFilename, sourceLineNumber, sourceObject)
-        description = "{}\n\n<b>Sink filename: </b>{}\n<b>Sink line number: </b> {}\n<b>Sink object: </b> {}".format(description, sinkFilename, sinkLineNumber, sinkObject)
+        description = f"<b>Source filename: </b>{sourceFilename}\n<b>Source line number: </b> {sourceLineNumber}\n<b>Source object: </b> {sourceObject}"
+
+        description = f"{description}\n\n<b>Sink filename: </b>{sinkFilename}\n<b>Sink line number: </b> {sinkLineNumber}\n<b>Sink object: </b> {sinkObject}"
+
         return description, pathnode
 
     # Process one result = one pathId for scanner  Scan detailed"
@@ -157,8 +159,11 @@ class {{ cookiecutter.tool_class_name }}Parser(object):
         title = query.get('name').replace('_', ' ')
         # Loop over <Path> (there should be only one)
         paths = result.findall('Path')
-        if(len(paths)) > 1:
-            logger.warning("Scan: more than one path found: " + str(len(paths)) + ". Only the last one will be used")
+        if (len(paths)) > 1:
+            logger.warning(
+                f"Scan: more than one path found: {len(paths)}. Only the last one will be used"
+            )
+
 
         for path in paths:
             sourceFilename = ''
@@ -170,7 +175,7 @@ class {{ cookiecutter.tool_class_name }}Parser(object):
             similarityId = str(path.get("SimilarityId"))
             path_id = str(path.get("PathId"))
             pathId = similarityId + path_id
-            findingdetail = '{}-----\n'.format(findingdetail)
+            findingdetail = f'{findingdetail}-----\n'
             # Loop over function calls / assignments in the data flow graph
             for pathnode in path.findall('PathNode'):
                 findingdetail = self.get_description_detailed(pathnode, findingdetail)
@@ -180,9 +185,9 @@ class {{ cookiecutter.tool_class_name }}Parser(object):
             # the last pathnode is the sink
             sinkFilename, sinkLineNumber, sinkObject = self.get_pathnode_elements(pathnode)
             # pathId is the unique id from tool which means that there is basically no aggregation except real duplicates
-            aggregateKeys = "{}{}{}{}{}".format(categories, cwe, name, sinkFilename, pathId)
+            aggregateKeys = f"{categories}{cwe}{name}{sinkFilename}{pathId}"
             if title and sinkFilename:
-                title = "{} ({})".format(title, ntpath.basename(sinkFilename))
+                title = f"{title} ({ntpath.basename(sinkFilename)})"
 
             find = Finding(title=title,
                        cwe=int(cwe),
@@ -215,25 +220,30 @@ class {{ cookiecutter.tool_class_name }}Parser(object):
     # Builds the finding description for scanner "Scan detailed"
     def get_description_detailed(self, pathnode, findingdetail):
         if pathnode.find('Line').text is not None:
-            findingdetail = "{}**Line Number:** {}\n".format(findingdetail, pathnode.find('Line').text)
+            findingdetail = (
+                f"{findingdetail}**Line Number:** {pathnode.find('Line').text}\n"
+            )
+
 
         if pathnode.find('Column').text is not None:
-            findingdetail = "{}**Column:** {}\n".format(findingdetail, pathnode.find('Column').text)
+            findingdetail = f"{findingdetail}**Column:** {pathnode.find('Column').text}\n"
 
         if pathnode.find('Name').text is not None:
-            findingdetail = "{}**Source Object:** {}\n".format(findingdetail, pathnode.find('Name').text)
+            findingdetail = (
+                f"{findingdetail}**Source Object:** {pathnode.find('Name').text}\n"
+            )
+
 
         for codefragment in pathnode.findall('Snippet/Line'):
-            findingdetail = "{}**Number:** {}\n**Code:** {}\n".format(findingdetail, codefragment.find('Number').text, codefragment.find('Code').text.strip())
+            findingdetail = f"{findingdetail}**Number:** {codefragment.find('Number').text}\n**Code:** {codefragment.find('Code').text.strip()}\n"
 
-        findingdetail = '{}-----\n'.format(findingdetail)
+
+        findingdetail = f'{findingdetail}-----\n'
         return findingdetail
 
     # Get name, cwe and categories from the global query tag (1 query = 1 type of vulnerability)
     def getQueryElements(self, query):
-        categories = ''
         name = query.get('name')
         cwe = query.get('cweId')
-        if query.get('categories') is not None:
-            categories = query.get('categories')
+        categories = '' if query.get('categories') is None else query.get('categories')
         return name, cwe, categories

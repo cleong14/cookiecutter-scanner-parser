@@ -28,12 +28,9 @@ class {{ cookiecutter.tool_class_name }}Parser(object):
         if type(content) is bytes:
             content = content.decode('utf-8')
         reader = csv.DictReader(io.StringIO(content), delimiter=',', quotechar='"')
-        csvarray = []
+        csvarray = list(reader)
 
-        for row in reader:
-            csvarray.append(row)
-
-        dupes = dict()
+        dupes = {}
         for row in csvarray:
             finding = Finding(test=test)
 
@@ -51,16 +48,17 @@ class {{ cookiecutter.tool_class_name }}Parser(object):
             finding.severity = self.convert_severity(int(row.get('priority', 0)))
 
             if url:
-                finding.unsaved_endpoints = list()
-                finding.unsaved_endpoints.append(self.get_endpoint(url))
-
+                finding.unsaved_endpoints = [self.get_endpoint(url)]
             if finding is not None:
                 if finding.title is None:
                     finding.title = ""
                 if finding.description is None:
                     finding.description = ""
 
-                key = hashlib.sha256((finding.title + '|' + finding.description).encode("utf-8")).hexdigest()
+                key = hashlib.sha256(
+                    f'{finding.title}|{finding.description}'.encode("utf-8")
+                ).hexdigest()
+
 
                 if key not in dupes:
                     dupes[key] = finding
@@ -70,7 +68,7 @@ class {{ cookiecutter.tool_class_name }}Parser(object):
     def description_parse(self, ret):
         items = ['impact', 'steps to reproduce:', 'steps to reproduce', 'poc']
         items_in = [i for i in items if i in ret['description'].lower()]
-        if len(items_in) == 0:
+        if not items_in:
             return ret
 
         impact = steps = poc = skip = 0
@@ -117,7 +115,7 @@ class {{ cookiecutter.tool_class_name }}Parser(object):
                 ret['impact'] = item
             elif first == 'Steps to reproduce':
                 ret['steps_to_reproduce'] = item
-            elif first == 'How to fix' or first == 'Fix':
+            elif first in ['How to fix', 'Fix']:
                 ret['mitigation'] = item
             elif first == 'PoC code':
                 ret['poc'] = item

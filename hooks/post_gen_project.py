@@ -67,10 +67,10 @@ def rename_delete_unused_template():
     # Determine template to keep
     tool_directory = os.path.join(WORKING, "tools/{{cookiecutter.tool_directory_name}}")
     template_to_keep = "template_{{cookiecutter.tool_file_type}}".lower() + "_parser.py"
+    base_prefix = 'template_'
     for filename in os.listdir(tool_directory):
         full_path = os.path.join(template_to_keep, filename)
 
-        base_prefix = 'template_'
         if filename.startswith(base_prefix):
             to_path = os.path.join(tool_directory, filename)
             if filename == template_to_keep:
